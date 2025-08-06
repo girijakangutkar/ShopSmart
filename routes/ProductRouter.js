@@ -8,6 +8,7 @@ const { storage } = require("../config/CloudinaryConfig");
 const redis = require("../config/RedisConfig");
 const upload = multer({ storage });
 
+//? Get products
 ProductRouter.get(
   "/products",
   AuthMiddleware(["user", "admin", "seller"]),
@@ -38,6 +39,7 @@ ProductRouter.get(
   }
 );
 
+//? Add product
 ProductRouter.post(
   "/addProduct",
   AuthMiddleware(["admin", "seller"]),
@@ -69,6 +71,7 @@ ProductRouter.post(
   }
 );
 
+//? Edit product
 ProductRouter.put(
   "/editProduct/:productId",
   AuthMiddleware(["admin", "seller"]),
@@ -113,6 +116,7 @@ ProductRouter.put(
   }
 );
 
+//? Delete products
 ProductRouter.delete(
   "/deleteProduct/:productId",
   AuthMiddleware(["admin", "seller"]),
