@@ -11,6 +11,13 @@ const UserSchema = new mongoose.Schema({
       product: { type: mongoose.Schema.Types.ObjectId, ref: "products" },
       quantity: { type: Number, default: 1 },
       purchasedAt: { type: Date, default: Date.now },
+      paymentMode: { type: String, required: true },
+      paymentStatus: { type: Boolean, default: false },
+    },
+  ],
+  cart: [
+    {
+      product: { type: mongoose.Schema.Types.ObjectId, ref: "products" },
     },
   ],
 });
