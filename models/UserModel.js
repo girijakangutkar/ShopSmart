@@ -11,13 +11,21 @@ const UserSchema = new mongoose.Schema({
       product: { type: mongoose.Schema.Types.ObjectId, ref: "products" },
       quantity: { type: Number, default: 1 },
       purchasedAt: { type: Date, default: Date.now },
-      paymentMode: { type: String, required: true },
+      paymentMode: { type: String },
       paymentStatus: { type: Boolean, default: false },
+      rating: { type: Number },
+      review: [
+        {
+          feedBack: { type: String },
+          feedBackDate: { type: Date, default: Date.now },
+        },
+      ],
     },
   ],
   cart: [
     {
       product: { type: mongoose.Schema.Types.ObjectId, ref: "products" },
+      quantity: { type: Number, default: 1 },
     },
   ],
 });
