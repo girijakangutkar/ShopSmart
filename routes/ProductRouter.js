@@ -14,18 +14,59 @@ ProductRouter.get(
   AuthMiddleware(["user", "admin", "seller"]),
   async (req, res) => {
     try {
-      //check if redis has cached data
-      const cached = await redis.get("products");
-      if (cached) {
-        return res.status(200).json({
-          msg: "Products data fetched successfully from cached",
-          productData: JSON.parse(cached),
-        });
-      }
-      const productData = await ProductModel.find();
+      //!check if redis has cached data
+      // const cachedKey = `products:${JSON.stringify(req.query)}`;
+      // const cached = await redis.get("cachedKey");
+      // if (cached) {
+      //   return res.status(200).json({
+      //     msg: "Products data fetched successfully from cached",
+      //     productData: JSON.parse(cached),
+      //   });
+      // }
 
-      // cache data
-      await redis.set("products", JSON.stringify(productData), "EX", 60);
+      //! Sorting is here
+      const { category, minPrice, maxPrice, name } = req.query;
+      const filtered = {};
+
+      if (category) {
+        // await redis.del("cachedKey");
+        filtered.category = category;
+      }
+
+      if (!isNaN(Number(minPrice)) || !isNaN(Number(maxPrice))) {
+        filtered.productPrice = {};
+        if (!isNaN(Number(minPrice))) {
+          // await redis.del("cachedKey");
+          filtered.productPrice.$gte = Number(minPrice);
+        }
+        if (!isNaN(Number(maxPrice))) {
+          // await redis.del("cachedKey");
+          filtered.productPrice.$lte = Number(maxPrice);
+        }
+      }
+
+      if (name) {
+        // await redis.del("cachedKey");
+        filtered.productName = { $regex: name, $options: "i" };
+      }
+
+      const sortBy = "productPrice";
+      const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
+
+      //! Pagination
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+
+      const productData = await ProductModel.find(filtered)
+        .sort({
+          [sortBy]: sortOrder,
+        })
+        .skip(skip)
+        .limit(limit);
+
+      //! cache data
+      // await redis.set("cachedKey", JSON.stringify(productData), "EX", 60);
       res.status(200).json({
         msg: "Products data fetched successfully from DB",
         productData: productData,
@@ -46,27 +87,57 @@ ProductRouter.post(
   upload.single("productImage"),
   async (req, res) => {
     try {
-      const { productName, ProductPrice, productCompany, AvailableColors } =
-        req.body;
+      const {
+        productName,
+        productPrice,
+        productCompany,
+        AvailableOptions,
+        category,
+        stock,
+      } = req.body;
+
+      // Validation
+      if (!productName || !productPrice) {
+        return res.status(400).json({
+          msg: "Product name and price are required",
+        });
+      }
+
+      // Check if file was uploaded
+      if (!req.file) {
+        return res.status(400).json({
+          msg: "Product image is required",
+        });
+      }
+
       const product = new ProductModel({
         productName,
         productImage: req.file.path,
-        ProductPrice,
+        productPrice: Number(productPrice),
+        category: category || "Uncategorized",
+        stock: Number(stock) || 0,
         productCompany,
-        AvailableColors,
+        AvailableOptions,
         productOwner: req.userId,
       });
-      //Content-Type: multipart/form-data
+
       await product.save();
-      //Remove cached data
-      await redis.del("products");
-      res
-        .status(201)
-        .json({ msg: "Product added successfully", product: product });
+
+      // Remove cached data
+      // await redis.del("cachedKey");
+
+      console.log("Product added successfully by user:", req.userId);
+
+      res.status(201).json({
+        msg: "Product added successfully",
+        product: product,
+      });
     } catch (error) {
-      res
-        .status(500)
-        .json({ msg: "Something went wrong while adding products" });
+      console.error("Error adding product:", error);
+      res.status(500).json({
+        msg: "Something went wrong while adding product",
+        error: error.message,
+      });
     }
   }
 );
@@ -100,7 +171,7 @@ ProductRouter.put(
           { new: true }
         );
         //Remove cached data
-        await redis.del("products");
+        // await redis.del("cachedKey");
         res
           .status(200)
           .json({ msg: "Products edited successfully", data: updatedInfo });
@@ -135,7 +206,7 @@ ProductRouter.delete(
       ) {
         await ProductModel.findByIdAndDelete(productId);
         //Remove cached data
-        await redis.del("products");
+        // await redis.del("cachedKey");
         res.status(200).json({ msg: "Products deleted successfully" });
       } else {
         res.status(403).json({ msg: "Access denied" });

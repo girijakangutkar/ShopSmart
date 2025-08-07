@@ -1,11 +1,26 @@
 const express = require("express");
+const cors = require("cors");
 const AuthRouter = require("./routes/AuthRouter");
 const Logger = require("./middlewares/Logger");
 const UserRouter = require("./routes/UserRouter");
 const ProductRouter = require("./routes/ProductRouter");
 const app = express();
+//! Env file
 require("dotenv").config();
+
+//!Mongo connection
 require("./config/MongoConfig");
+
+//!Cron schedular
+require("./routes/AdminRoutes");
+
+//!cors
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 

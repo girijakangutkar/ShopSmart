@@ -1,7 +1,6 @@
 const express = require("express");
 const UserModel = require("../models/UserModel");
 const AuthRouter = express.Router();
-const nodemailer = require("nodemailer");
 const saltsRounds = 10;
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -13,12 +12,17 @@ const { storage } = require("../config/CloudinaryConfig");
 const upload = multer({ storage });
 
 //? Node Mailer
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
+const transporter = require("../config/NodeMailerTransporter");
+
+AuthRouter.get("/user/:userId", async (req, res) => {
+  try {
+    const user = await UserModel.findById(req.params.userId).select(
+      "name profilePhoto role"
+    );
+    res.json({ user });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch user" });
+  }
 });
 
 //* Signup user
@@ -113,10 +117,10 @@ AuthRouter.post("/forgotPassword", RateLimiter, async (req, res) => {
       { userId: user._id, role: user.role },
       process.env.JWT_SECRET
     );
-    let resetLink = `http://localhost:3000/api/resetPassword?token=${resetToken}`;
+    let resetLink = `http://localhost:5173/api/resetPassword?token=${resetToken}`;
 
     await transporter.sendMail({
-      from: `${process.env.MAIL_USER} from ShopSmart`,
+      from: `"ShopSmart" <${process.env.MAIL_USER}>`,
       to: user.email,
       subject: "Reset password from ShopSmart",
       html: `<p>Dear ${user.name}, here is your reset password link</p><p>${resetLink}</p>`,
@@ -131,7 +135,7 @@ AuthRouter.post("/forgotPassword", RateLimiter, async (req, res) => {
 });
 
 //* Reset password
-AuthRouter.post("/resetPassword", RateLimiter, async (req, res) => {
+AuthRouter.put("/resetPassword", RateLimiter, async (req, res) => {
   try {
     const { newPassword } = req.body;
     const { token } = req.query;
@@ -144,11 +148,11 @@ AuthRouter.post("/resetPassword", RateLimiter, async (req, res) => {
       }
       bcrypt.hash(newPassword, 10, async function (err, hash) {
         if (err) {
-          res.status(500).json({ msg: "cannot hash password" });
+          return res.status(500).json({ msg: "cannot hash password" });
         } else {
           user.password = hash;
           await user.save();
-          res.status(201).json({ msg: "Password reset success" });
+          return res.status(201).json({ msg: "Password reset success" });
         }
       });
     }

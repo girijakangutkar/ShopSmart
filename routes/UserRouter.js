@@ -106,27 +106,43 @@ UserRouter.put(
   "/addToCart/:productId",
   AuthMiddleware(["user", "admin"]),
   async (req, res) => {
+    console.log("Add to cart route hit with productId:", req.params.productId);
     try {
       const productId = req.params.productId;
       const product = await ProductModel.findById(productId);
 
       if (!product) {
-        return res.status(404).json({ msg: "Product does not exists" });
+        return res.status(404).json({ msg: "Product does not exist" });
       }
 
-      const cartProduct = {
-        product: product._id,
-      };
+      const user = await UserModel.findById(req.userId);
 
-      const updatedUser = await UserModel.findByIdAndUpdate(
-        req.userId,
-        { $push: { cart: cartProduct } },
-        { new: true }
+      if (!user) {
+        return res.status(404).json({ msg: "User not found" });
+      }
+
+      const existingItemIndex = user.cart.findIndex(
+        (item) => item.product.toString() === productId
       );
-      res
-        .status(200)
-        .json({ msg: "Order success", cartData: updatedUser.cart });
+
+      if (existingItemIndex !== -1) {
+        user.cart[existingItemIndex].quantity += 1;
+      } else {
+        user.cart.push({ product: productId, quantity: 1 });
+      }
+
+      await user.save();
+
+      const updatedUser = await UserModel.findById(req.userId).populate(
+        "cart.product"
+      );
+
+      res.status(200).json({
+        msg: "Product added to cart",
+        cartData: updatedUser.cart,
+      });
     } catch (error) {
+      console.error("Add to cart error:", error);
       res.status(500).json({
         msg: "Something went wrong while adding product to the cart",
         error: error.message,
@@ -139,7 +155,10 @@ UserRouter.put(
 UserRouter.get("/cart", AuthMiddleware(["user", "admin"]), async (req, res) => {
   try {
     if (req.role == "user" || req.role == "admin") {
-      const user = await UserModel.findById(req.userId);
+      const user = await UserModel.findById(req.userId).populate(
+        "cart.product"
+      );
+
       const cartData = user.cart;
       res.status(200).json({
         msg: "fetched cart successfully",
@@ -156,5 +175,34 @@ UserRouter.get("/cart", AuthMiddleware(["user", "admin"]), async (req, res) => {
       .json({ msg: "Something went wrong while fetching orderHistory" });
   }
 });
+
+//? Remove from cart
+UserRouter.delete(
+  "/removeFromCart/:productId",
+  AuthMiddleware(["user", "admin"]),
+  async (req, res) => {
+    try {
+      const productId = req.params.productId;
+
+      const updatedUser = await UserModel.findByIdAndUpdate(
+        req.userId,
+        {
+          $pull: { cart: { product: productId } },
+        },
+        { new: true }
+      ).populate("cart.product");
+
+      res.status(200).json({
+        msg: "Product removed from cart",
+        cart: updatedUser.cart,
+      });
+    } catch (error) {
+      res.status(500).json({
+        msg: "Something went wrong while removing product from cart",
+        error: error.message,
+      });
+    }
+  }
+);
 
 module.exports = UserRouter;
