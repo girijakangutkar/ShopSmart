@@ -8,6 +8,38 @@ const { storage } = require("../config/CloudinaryConfig");
 const ProductModel = require("../models/ProductModel");
 const upload = multer({ storage });
 
+//! user profile
+//? Profile Edit
+UserRouter.patch(
+  "/updateProfile/:userId",
+  AuthMiddleware(["user", "admin", "seller"]),
+  upload.single("profilePhoto"),
+  async (req, res) => {
+    try {
+      const newData = req.body;
+      const userId = req.params.userId;
+      const user = await UserModel.findById(userId);
+      if (!user) {
+        return res.status(404).json({ msg: "User does not exists" });
+      }
+      const pic = req.file?.path || user.profilePhoto || "";
+
+      await UserModel.findByIdAndUpdate(
+        userId,
+        { ...newData, pic },
+        { new: true }
+      );
+      // Content-Type: multipart/form-data
+      res.status(200).json({ msg: "User updated successfully" });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ msg: "Something went wrong while editing user profile" });
+    }
+  }
+);
+
+//! Order History
 //? Get orderHistory
 UserRouter.get(
   "/orderHistory",
@@ -15,7 +47,13 @@ UserRouter.get(
   async (req, res) => {
     try {
       if (req.role == "user" || req.role == "admin") {
-        const user = await UserModel.findById(req.userId);
+        const user = await UserModel.findById(req.userId).populate({
+          path: "orderHistory.product",
+          populate: {
+            path: "review.ratedBy",
+            select: "_id",
+          },
+        });
         const orders = user.orderHistory;
         res.status(200).json({
           msg: "Order history fetch success",
@@ -71,36 +109,7 @@ UserRouter.put(
   }
 );
 
-//? Profile Edit
-UserRouter.patch(
-  "/updateProfile/:userId",
-  AuthMiddleware(["user", "admin", "seller"]),
-  upload.single("profilePhoto"),
-  async (req, res) => {
-    try {
-      const newData = req.body;
-      const userId = req.params.userId;
-      const user = await UserModel.findById(userId);
-      if (!user) {
-        return res.status(404).json({ msg: "User does not exists" });
-      }
-      const pic = req.file?.path || user.profilePhoto || "";
-
-      await UserModel.findByIdAndUpdate(
-        userId,
-        { ...newData, pic },
-        { new: true }
-      );
-      // Content-Type: multipart/form-data
-      res.status(200).json({ msg: "User updated successfully" });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ msg: "Something went wrong while editing user profile" });
-    }
-  }
-);
-
+//! Cart
 //? Add to cart
 UserRouter.put(
   "/addToCart/:productId",
@@ -176,6 +185,9 @@ UserRouter.get("/cart", AuthMiddleware(["user", "admin"]), async (req, res) => {
   }
 });
 
+//? Update the quantity
+// UserRouter.patch("/")
+
 //? Remove from cart
 UserRouter.delete(
   "/removeFromCart/:productId",
@@ -200,6 +212,63 @@ UserRouter.delete(
       res.status(500).json({
         msg: "Something went wrong while removing product from cart",
         error: error.message,
+      });
+    }
+  }
+);
+
+//! Rating and review
+//? Rating and feedback for product
+UserRouter.patch(
+  "/addRatingAndReview/:productId",
+  AuthMiddleware(["user", "admin"]),
+  async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const product = await ProductModel.findById(productId);
+
+      if (!product) {
+        return res.status(404).json({ msg: "Product might have removed" });
+      }
+
+      const { rating, feedback } = req.body.review;
+
+      if (!rating || !feedback) {
+        return res
+          .status(400)
+          .json({ msg: "Rating and feedback are required" });
+      }
+
+      const alreadyReviewed = (product.review || []).find(
+        (r) => r.ratedBy.toString() === req.userId
+      );
+
+      if (alreadyReviewed) {
+        return res
+          .status(400)
+          .json({ msg: "You have already review this product" });
+      }
+
+      await ProductModel.findByIdAndUpdate(
+        productId,
+        {
+          $push: {
+            review: {
+              ratedBy: req.userId,
+              rating,
+              feedback,
+            },
+          },
+        },
+        { new: true }
+      );
+
+      res.status(200).json({ msg: "Review added", product: product });
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({
+        msg: "Something went wrong while giving rating and review",
+        error: error,
       });
     }
   }

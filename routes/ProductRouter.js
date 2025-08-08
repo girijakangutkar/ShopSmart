@@ -8,6 +8,35 @@ const { storage } = require("../config/CloudinaryConfig");
 const redis = require("../config/RedisConfig");
 const upload = multer({ storage });
 
+ProductRouter.get(
+  "/getProduct/:productId",
+  AuthMiddleware(["admin", "seller"]),
+  async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const product = await ProductModel.findById(productId);
+
+      if (!product) {
+        return res.status(404).json({ msg: "Product not found" });
+      }
+      if (
+        req.role !== "admin" &&
+        product.productOwner.toString() !== req.userId
+      ) {
+        return res.status(403).json({ msg: "Access denied" });
+      }
+
+      res.status(200).json({ product });
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      res.status(500).json({
+        msg: "Something went wrong while fetching product",
+        error: error.message,
+      });
+    }
+  }
+);
+
 //? Get products
 ProductRouter.get(
   "/products",
@@ -27,6 +56,11 @@ ProductRouter.get(
       //! Sorting is here
       const { category, minPrice, maxPrice, name } = req.query;
       const filtered = {};
+
+      //! Seller product CRUD feature
+      if (req.role == "seller") {
+        filtered.productOwner = req.userId;
+      }
 
       if (category) {
         // await redis.del("cachedKey");
@@ -51,7 +85,8 @@ ProductRouter.get(
       }
 
       const sortBy = "productPrice";
-      const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
+      const sortOrderRaw = req.query.sortOrder?.toLowerCase();
+      const sortOrder = sortOrderRaw === "desc" ? -1 : 1;
 
       //! Pagination
       const page = parseInt(req.query.page) || 1;
@@ -110,6 +145,10 @@ ProductRouter.post(
         });
       }
 
+      const optionsArray = Array.isArray(AvailableOptions)
+        ? AvailableOptions
+        : AvailableOptions.split(",").map((opt) => opt.trim());
+
       const product = new ProductModel({
         productName,
         productImage: req.file.path,
@@ -117,7 +156,7 @@ ProductRouter.post(
         category: category || "Uncategorized",
         stock: Number(stock) || 0,
         productCompany,
-        AvailableOptions,
+        AvailableOptions: optionsArray,
         productOwner: req.userId,
       });
 
@@ -218,5 +257,33 @@ ProductRouter.delete(
     }
   }
 );
+
+//? Open the product detail
+ProductRouter.get("/productDetails/:productId", async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    const product = await ProductModel.findById(productId)
+      .populate({
+        path: "review.ratedBy",
+        select: "name email profilePhoto",
+      })
+      .populate({
+        path: "productOwner",
+        select: "name email",
+      });
+
+    if (!product) {
+      return res.status(404).json({ msg: "Product not found" });
+    }
+
+    res
+      .status(200)
+      .json({ msg: "Product data fetched success", product: product });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Something went wrong while fetching product data" });
+  }
+});
 
 module.exports = ProductRouter;
