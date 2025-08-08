@@ -13,6 +13,14 @@ const ProductSchema = new mongoose.Schema({
   },
   stock: { type: Number, required: true },
   category: { type: String, required: true },
+  review: [
+    {
+      ratedBy: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
+      rating: { type: Number },
+      feedback: { type: String },
+      feedbackDate: { type: Date, default: Date.now },
+    },
+  ],
 });
 
 const ProductModel = mongoose.model("products", ProductSchema);

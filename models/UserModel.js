@@ -13,13 +13,6 @@ const UserSchema = new mongoose.Schema({
       purchasedAt: { type: Date, default: Date.now },
       paymentMode: { type: String },
       paymentStatus: { type: Boolean, default: false },
-      rating: { type: Number },
-      review: [
-        {
-          feedBack: { type: String },
-          feedBackDate: { type: Date, default: Date.now },
-        },
-      ],
     },
   ],
   cart: [
@@ -28,6 +21,7 @@ const UserSchema = new mongoose.Schema({
       quantity: { type: Number, default: 1 },
     },
   ],
+  createdAt: { type: Date, default: Date.now },
 });
 
 const UserModel = mongoose.model("users", UserSchema);
