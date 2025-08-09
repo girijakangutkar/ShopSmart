@@ -14,6 +14,8 @@ const upload = multer({ storage });
 //? Node Mailer
 const transporter = require("../config/NodeMailerTransporter");
 
+//* Main api endPoint /api
+
 AuthRouter.get("/user/:userId", async (req, res) => {
   try {
     const user = await UserModel.findById(req.params.userId).select(
@@ -146,7 +148,7 @@ AuthRouter.put("/resetPassword", RateLimiter, async (req, res) => {
       if (!user) {
         return res.status(401).json({ msg: "User is not authorized" }); // unauthorized
       }
-      bcrypt.hash(newPassword, 10, async function (err, hash) {
+      bcrypt.hash(newPassword, saltsRounds, async function (err, hash) {
         if (err) {
           return res.status(500).json({ msg: "cannot hash password" });
         } else {
