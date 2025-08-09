@@ -1,6 +1,6 @@
 const express = require("express");
 const ProductModel = require("../models/ProductModel");
-const AuthMiddleware = require("../middlewares/authMiddleware");
+const AuthMiddleware = require("../middlewares/AuthMiddleware");
 const ProductRouter = express.Router();
 
 const multer = require("multer");
