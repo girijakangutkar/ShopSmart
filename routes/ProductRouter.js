@@ -8,11 +8,18 @@ const { storage } = require("../config/CloudinaryConfig");
 const redis = require("../config/RedisConfig");
 const upload = multer({ storage });
 
+//* Main API end point "wareHouse"
 ProductRouter.get(
   "/getProduct/:productId",
   AuthMiddleware(["admin", "seller"]),
   async (req, res) => {
     try {
+      const productId = req.params.productId;
+      const product = await ProductModel.findById(productId);
+
+      if (!product) {
+        return res.status(404).json({ msg: "Product not found" });
+      }
       const cached = await redis.get(`product:${productId}`);
 
       if (cached) {
@@ -20,12 +27,6 @@ ProductRouter.get(
           msg: "products fetched from cached data",
           product: JSON.parse(cached),
         });
-      }
-      const productId = req.params.productId;
-      const product = await ProductModel.findById(productId);
-
-      if (!product) {
-        return res.status(404).json({ msg: "Product not found" });
       }
       if (
         req.role !== "admin" &&
@@ -60,31 +61,46 @@ ProductRouter.get(
   AuthMiddleware(["user", "admin", "seller"]),
   async (req, res) => {
     try {
-      //! Sorting is here
       const { category, minPrice, maxPrice, name, sortOrder } = req.query;
+
+      // Validate and normalize query parameters
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const sortDirection = sortOrder === "desc" ? -1 : 1;
+
       const isCustomSort = sortOrder && sortOrder !== "asc";
       const hasFilters =
         category || minPrice || maxPrice || name || isCustomSort;
 
+      // Log user info for debugging
+      console.log("Role:", req.role, "User ID:", req.userId);
+
+      // Redis cache logic
+      let cachedKey;
       if (!hasFilters) {
-        const cachedKey =
+        cachedKey =
           req.role === "seller"
             ? `products:seller:${req.userId}`
             : `products:all`;
 
-        const cached = await redis.get(cachedKey);
-        if (cached) {
-          return res.status(200).json({
-            msg: "Product data from fetched from cache",
-            productData: JSON.parse(cached),
-          });
+        try {
+          const cached = await redis.get(cachedKey);
+          if (cached) {
+            return res.status(200).json({
+              msg: "Product data fetched from cache",
+              productData: JSON.parse(cached),
+            });
+          }
+        } catch (redisError) {
+          console.error("Redis GET error:", redisError.message);
         }
       }
 
+      // Build MongoDB query
       const filtered = {};
 
-      //! Seller product CRUD feature
-      if (req.role == "seller") {
+      if (req.role === "seller") {
         filtered.productOwner = req.userId;
       }
 
@@ -92,51 +108,42 @@ ProductRouter.get(
         filtered.category = category;
       }
 
-      if (!isNaN(Number(minPrice)) || !isNaN(Number(maxPrice))) {
+      const min = Number(minPrice);
+      const max = Number(maxPrice);
+      if (!isNaN(min) || !isNaN(max)) {
         filtered.productPrice = {};
-        if (!isNaN(Number(minPrice))) {
-          filtered.productPrice.$gte = Number(minPrice);
-        }
-        if (!isNaN(Number(maxPrice))) {
-          filtered.productPrice.$lte = Number(maxPrice);
-        }
+        if (!isNaN(min)) filtered.productPrice.$gte = min;
+        if (!isNaN(max)) filtered.productPrice.$lte = max;
       }
 
       if (name) {
         filtered.productName = { $regex: name, $options: "i" };
       }
 
-      const sortBy = "productPrice";
-
-      //! Pagination
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const skip = (page - 1) * limit;
-
+      // Fetch from MongoDB
       const productData = await ProductModel.find(filtered)
-        .sort({
-          [sortBy]: sortOrder,
-        })
+        .sort({ productPrice: sortDirection })
         .skip(skip)
         .limit(limit);
 
-      if (!hasFilters) {
-        const cachedKey =
-          req.role === "seller"
-            ? `products:seller:${req.userId}`
-            : `products:all`;
-
-        await redis.set(cachedKey, JSON.stringify(productData), "EX", 300);
+      // Cache result if no filters
+      if (!hasFilters && cachedKey) {
+        try {
+          await redis.set(cachedKey, JSON.stringify(productData), "EX", 300);
+        } catch (redisError) {
+          console.error("Redis SET error:", redisError.message);
+        }
       }
 
       res.status(200).json({
         msg: "Products data fetched successfully from DB",
-        productData: productData,
+        productData,
       });
     } catch (error) {
+      console.error("Product fetch error:", error.message);
       res.status(500).json({
         msg: "Something went wrong while fetching products",
-        error: error,
+        error: error.message,
       });
     }
   }
