@@ -13,6 +13,14 @@ ProductRouter.get(
   AuthMiddleware(["admin", "seller"]),
   async (req, res) => {
     try {
+      const cached = await redis.get(`product:${productId}`);
+
+      if (cached) {
+        return res.status(200).json({
+          msg: "products fetched from cached data",
+          product: JSON.parse(cached),
+        });
+      }
       const productId = req.params.productId;
       const product = await ProductModel.findById(productId);
 
@@ -26,7 +34,16 @@ ProductRouter.get(
         return res.status(403).json({ msg: "Access denied" });
       }
 
-      res.status(200).json({ product });
+      await redis.set(
+        `product:${productId}`,
+        JSON.stringify(product),
+        "EX",
+        60
+      );
+
+      res
+        .status(200)
+        .json({ mag: "Products fetched from DB", product: product });
     } catch (error) {
       console.error("Error fetching product:", error);
       res.status(500).json({
@@ -43,18 +60,27 @@ ProductRouter.get(
   AuthMiddleware(["user", "admin", "seller"]),
   async (req, res) => {
     try {
-      //!check if redis has cached data
-      // const cachedKey = `products:${JSON.stringify(req.query)}`;
-      // const cached = await redis.get("cachedKey");
-      // if (cached) {
-      //   return res.status(200).json({
-      //     msg: "Products data fetched successfully from cached",
-      //     productData: JSON.parse(cached),
-      //   });
-      // }
-
       //! Sorting is here
-      const { category, minPrice, maxPrice, name } = req.query;
+      const { category, minPrice, maxPrice, name, sortOrder } = req.query;
+      const isCustomSort = sortOrder && sortOrder !== "asc";
+      const hasFilters =
+        category || minPrice || maxPrice || name || isCustomSort;
+
+      if (!hasFilters) {
+        const cachedKey =
+          req.role === "seller"
+            ? `products:seller:${req.userId}`
+            : `products:all`;
+
+        const cached = await redis.get(cachedKey);
+        if (cached) {
+          return res.status(200).json({
+            msg: "Product data from fetched from cache",
+            productData: JSON.parse(cached),
+          });
+        }
+      }
+
       const filtered = {};
 
       //! Seller product CRUD feature
@@ -63,30 +89,24 @@ ProductRouter.get(
       }
 
       if (category) {
-        // await redis.del("cachedKey");
         filtered.category = category;
       }
 
       if (!isNaN(Number(minPrice)) || !isNaN(Number(maxPrice))) {
         filtered.productPrice = {};
         if (!isNaN(Number(minPrice))) {
-          // await redis.del("cachedKey");
           filtered.productPrice.$gte = Number(minPrice);
         }
         if (!isNaN(Number(maxPrice))) {
-          // await redis.del("cachedKey");
           filtered.productPrice.$lte = Number(maxPrice);
         }
       }
 
       if (name) {
-        // await redis.del("cachedKey");
         filtered.productName = { $regex: name, $options: "i" };
       }
 
       const sortBy = "productPrice";
-      const sortOrderRaw = req.query.sortOrder?.toLowerCase();
-      const sortOrder = sortOrderRaw === "desc" ? -1 : 1;
 
       //! Pagination
       const page = parseInt(req.query.page) || 1;
@@ -100,8 +120,15 @@ ProductRouter.get(
         .skip(skip)
         .limit(limit);
 
-      //! cache data
-      // await redis.set("cachedKey", JSON.stringify(productData), "EX", 60);
+      if (!hasFilters) {
+        const cachedKey =
+          req.role === "seller"
+            ? `products:seller:${req.userId}`
+            : `products:all`;
+
+        await redis.set(cachedKey, JSON.stringify(productData), "EX", 300);
+      }
+
       res.status(200).json({
         msg: "Products data fetched successfully from DB",
         productData: productData,
@@ -114,6 +141,18 @@ ProductRouter.get(
     }
   }
 );
+
+const clearProductCache = async () => {
+  try {
+    await redis.del("products:all");
+    const sellerKeys = await redis.keys("products:seller:*");
+    if (sellerKeys.length > 0) {
+      await redis.del(...sellerKeys);
+    }
+  } catch (error) {
+    console.error("Error clearing cache:", error);
+  }
+};
 
 //? Add product
 ProductRouter.post(
@@ -167,6 +206,9 @@ ProductRouter.post(
 
       console.log("Product added successfully by user:", req.userId);
 
+      await redis.del("productList");
+      await clearProductCache();
+
       res.status(201).json({
         msg: "Product added successfully",
         product: product,
@@ -210,7 +252,9 @@ ProductRouter.put(
           { new: true }
         );
         //Remove cached data
-        // await redis.del("cachedKey");
+        await redis.del("productList");
+        await clearProductCache();
+
         res
           .status(200)
           .json({ msg: "Products edited successfully", data: updatedInfo });
@@ -245,7 +289,9 @@ ProductRouter.delete(
       ) {
         await ProductModel.findByIdAndDelete(productId);
         //Remove cached data
-        // await redis.del("cachedKey");
+        await redis.del("productList");
+        await clearProductCache();
+
         res.status(200).json({ msg: "Products deleted successfully" });
       } else {
         res.status(403).json({ msg: "Access denied" });
@@ -261,6 +307,15 @@ ProductRouter.delete(
 //? Open the product detail
 ProductRouter.get("/productDetails/:productId", async (req, res) => {
   try {
+    const cached = await redis.get("productDetails");
+
+    if (cached) {
+      return res.status(200).json({
+        msg: "product details from cached",
+        product: JSON.parse(cached),
+      });
+    }
+
     const productId = req.params.productId;
     const product = await ProductModel.findById(productId)
       .populate({
@@ -276,6 +331,7 @@ ProductRouter.get("/productDetails/:productId", async (req, res) => {
       return res.status(404).json({ msg: "Product not found" });
     }
 
+    await redis.set("productDetails", JSON.stringify(product), "EX", 60);
     res
       .status(200)
       .json({ msg: "Product data fetched success", product: product });
