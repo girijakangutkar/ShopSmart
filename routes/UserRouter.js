@@ -2,7 +2,7 @@ const express = require("express");
 const UserModel = require("../models/UserModel");
 const AuthMiddleware = require("../middlewares/authMiddleware");
 const UserRouter = express.Router();
-
+const redis = require("../config/RedisConfig");
 const multer = require("multer");
 const { storage } = require("../config/CloudinaryConfig");
 const ProductModel = require("../models/ProductModel");
@@ -47,6 +47,15 @@ UserRouter.get(
   async (req, res) => {
     try {
       if (req.role == "user" || req.role == "admin") {
+        const cached = await redis.get(`orderHistory:${req.userId}`);
+
+        if (cached) {
+          return res.status(200).json({
+            msg: "OrderHistory fetched from cached data",
+            orderHistory: JSON.parse(cached),
+          });
+        }
+
         const user = await UserModel.findById(req.userId).populate({
           path: "orderHistory.product",
           populate: {
@@ -54,9 +63,16 @@ UserRouter.get(
             select: "_id",
           },
         });
+
+        await redis.set(
+          `orderHistory:${req.userId}`,
+          JSON.stringify(user.orderHistory),
+          "EX",
+          60
+        );
         const orders = user.orderHistory;
         res.status(200).json({
-          msg: "Order history fetch success",
+          msg: "Order history fetch success from DB",
           orderHistory: orders,
         });
       } else {
@@ -98,6 +114,8 @@ UserRouter.put(
         { $push: { orderHistory: orderProduct } },
         { new: true }
       );
+
+      await redis.del(`orderHistory:${req.userId}`);
       res
         .status(200)
         .json({ msg: "Order success", orderData: updatedUser.orderHistory });
@@ -146,6 +164,8 @@ UserRouter.put(
         "cart.product"
       );
 
+      await redis.del("cartItems");
+
       res.status(200).json({
         msg: "Product added to cart",
         cartData: updatedUser.cart,
@@ -164,11 +184,21 @@ UserRouter.put(
 UserRouter.get("/cart", AuthMiddleware(["user", "admin"]), async (req, res) => {
   try {
     if (req.role == "user" || req.role == "admin") {
+      const cached = await redis.get("cartItems");
+
+      if (cached) {
+        res.status(200).json({
+          msg: "OrderHistory fetched from cached data",
+          cart: JSON.parse(cached),
+        });
+      }
       const user = await UserModel.findById(req.userId).populate(
         "cart.product"
       );
 
       const cartData = user.cart;
+
+      await redis.set("cartInfo", JSON.stringify(cartData), "EX", 60);
       res.status(200).json({
         msg: "fetched cart successfully",
         cart: cartData,
@@ -204,6 +234,7 @@ UserRouter.delete(
         { new: true }
       ).populate("cart.product");
 
+      await redis.del("cartInfo");
       res.status(200).json({
         msg: "Product removed from cart",
         cart: updatedUser.cart,
@@ -268,6 +299,124 @@ UserRouter.patch(
       console.log(error);
       res.status(500).json({
         msg: "Something went wrong while giving rating and review",
+        error: error,
+      });
+    }
+  }
+);
+
+//! Wish List
+//? Get wishlist
+UserRouter.get(
+  "/wishList",
+  AuthMiddleware(["user", "admin"]),
+  async (req, res) => {
+    try {
+      const cached = await redis.get("wishListItems");
+
+      if (cached) {
+        res.status(200).json({
+          msg: "OrderHistory fetched from cached data",
+          wishList: JSON.parse(cached),
+        });
+      }
+      const wishList = await UserModel.findById(req.userId).populate(
+        "wishList.product"
+      );
+      if (!wishList) {
+        return res.status(404).json({ msg: "User does not exists" });
+      }
+
+      await redis.set(
+        "wishListItems",
+        JSON.stringify(wishList.wishList),
+        "EX",
+        60
+      );
+
+      res.status(200).json({
+        msg: "WishList fetching completed",
+        wishList: wishList.wishList,
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ msg: "Something went wrong while fetching wishlist" });
+    }
+  }
+);
+
+//? Add to wish list
+UserRouter.patch(
+  "/addToWishList/:productId",
+  AuthMiddleware(["user", "admin"]),
+  async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const product = await ProductModel.findById(productId);
+
+      if (!product) {
+        return res.status(404).json({ msg: "Product might have removed" });
+      }
+      const user = await UserModel.findById(req.userId);
+      if (!user) {
+        return res.status(404).json({ msg: "User does not exists" });
+      }
+
+      // const existInWishList = user.wishList.findIndex(
+      //   (item) => item.product.toString() == productId
+      // );
+
+      // if (existInWishList == -1) {
+      await UserModel.findByIdAndUpdate(
+        req.userId,
+        {
+          $push: {
+            wishList: {
+              product: productId,
+            },
+          },
+        },
+        { new: true }
+      );
+      // } else {
+      //   res.status(403).json({ msg: "Already present in the wishlist" });
+      // }
+
+      await redis.del("wishListItems");
+
+      res.status(200).json({ msg: "Added to the wishList" });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ msg: "Something went wrong while adding wishList" });
+    }
+  }
+);
+
+//? Remove from wishList
+UserRouter.delete(
+  "/removeFromWishList/:productId",
+  AuthMiddleware(["user", "admin"]),
+  async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const updateList = await UserModel.findByIdAndUpdate(
+        req.userId,
+        {
+          $pull: { wishList: { product: productId } },
+        },
+        { new: true }
+      ).populate("wishList.product");
+
+      await redis.del("wishListItems");
+      res.status(200).json({
+        msg: "Product removed from wishList",
+        wishList: updateList.wishList,
+      });
+    } catch (error) {
+      res.status(500).json({
+        msg: "Something went wrong while removing product from wishlist",
         error: error,
       });
     }
