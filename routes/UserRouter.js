@@ -1,6 +1,6 @@
 const express = require("express");
 const UserModel = require("../models/UserModel");
-const AuthMiddleware = require("../middlewares/authMiddleware");
+const AuthMiddleware = require("../middlewares/AuthMiddleware");
 const UserRouter = express.Router();
 const redis = require("../config/RedisConfig");
 const multer = require("multer");
