@@ -1,6 +1,3 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
 name: Node.js CI
 
 on:
@@ -9,20 +6,24 @@ on:
   pull_request:
     branches: ["main"]
 
-env:
-  MONGO_URI: ${{ secrets.MONGO_URI }}
-  JWT_SECRET: ${{ secrets.JWT_SECRET}}
-
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
         node-version: [20.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     services:
+      mongodb:
+        image: mongo:6.0
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd="mongosh --eval 'db.runCommand({ping: 1})'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
       redis:
         image: redis:6
         ports: ["6379:6379"]
@@ -32,17 +33,50 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
+    env:
+      NODE_ENV: test
+      MONGO_URI: mongodb://localhost:27017/test_database
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      REDIS_URL: redis://localhost:6379
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
-      - run: npm ci
-      - run: npm run build --if-present
-      - run: npm test
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for MongoDB
+        run: |
+          until mongosh --eval "print('MongoDB is ready')" --quiet; do
+            echo "Waiting for MongoDB..."
+            sleep 2
+          done
+
+      - name: Wait for Redis
+        run: |
+          until redis-cli ping; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+
+      - name: Run tests
+        run: npm test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Build Docker image
         run: docker build -t shopsmart .
+
       - name: Run Docker container
         run: docker run -d -p 3000:3000 --name shop-smart shopsmart
