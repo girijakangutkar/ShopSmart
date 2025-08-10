@@ -17,7 +17,7 @@ const mongoose = require("mongoose");
 
 const connectWithRetry = () => {
   mongoose
-    .connect(process.env.MONGODB_URI, {
+    .connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       serverSelectionTimeoutMS: 15000, // Increase timeout to 15 seconds
