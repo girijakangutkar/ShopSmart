@@ -38,6 +38,11 @@ const razorpay = new Razorpay({
 
 app.use(express.json());
 
+// test routes
+app.get("/", (req, res) => {
+  res.status(200).json({ msg: "Everything is working fine" });
+});
+
 app.use("/api", Logger, AuthRouter);
 
 app.use("/myInfo", Logger, UserRouter);
