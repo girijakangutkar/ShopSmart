@@ -8,6 +8,7 @@ const { storage } = require("../config/CloudinaryConfig");
 const ProductModel = require("../models/ProductModel");
 const upload = multer({ storage });
 
+//* Main API point "/myInfo"
 //! user profile
 //? Profile Edit
 UserRouter.patch(
