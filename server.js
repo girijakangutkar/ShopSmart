@@ -97,6 +97,11 @@ router.get("/paymentStatus/:paymentId", async (req, res) => {
   }
 });
 
+// app.use((err, req, res, next) => {
+//   console.error("Unhandled error:", err);
+//   res.status(500).json({ msg: "Internal server error", error: err.message });
+// });
+
 if (process.env.NODE_ENV !== "test") {
   app.listen(3000, () => {
     console.log("Server is running on port 3000");
