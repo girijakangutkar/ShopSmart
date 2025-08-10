@@ -9,6 +9,97 @@ const redis = require("../config/RedisConfig");
 const upload = multer({ storage });
 
 //* Main API end point "wareHouse"
+
+//? Get products - PUBLIC ROUTE (no authentication required)
+ProductRouter.get("/public/products", async (req, res) => {
+  try {
+    const { category, minPrice, maxPrice, name, sortOrder } = req.query;
+
+    // Validate and normalize query parameters
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const sortDirection = sortOrder === "desc" ? -1 : 1;
+
+    const isCustomSort = sortOrder && sortOrder !== "asc";
+    const hasFilters = category || minPrice || maxPrice || name || isCustomSort;
+
+    // Redis cache logic for public products
+    let cachedKey = "products:public";
+    if (!hasFilters) {
+      try {
+        const cached = await redis.get(cachedKey);
+        if (cached) {
+          return res.status(200).json({
+            msg: "Product data fetched from cache",
+            productData: JSON.parse(cached),
+          });
+        }
+      } catch (redisError) {
+        console.error("Redis GET error:", redisError.message);
+      }
+    }
+
+    // Build MongoDB query - no user-specific filtering
+    const filtered = {};
+
+    if (category) {
+      filtered.category = category;
+    }
+
+    const min = Number(minPrice);
+    const max = Number(maxPrice);
+    if (!isNaN(min) || !isNaN(max)) {
+      filtered.productPrice = {};
+      if (!isNaN(min)) filtered.productPrice.$gte = min;
+      if (!isNaN(max)) filtered.productPrice.$lte = max;
+    }
+
+    if (name) {
+      filtered.productName = { $regex: name, $options: "i" };
+    }
+
+    // Fetch from MongoDB
+    const productData = await ProductModel.find(filtered)
+      .sort({ productPrice: sortDirection })
+      .skip(skip)
+      .limit(limit);
+
+    // Cache result if no filters
+    if (!hasFilters) {
+      try {
+        await redis.set(cachedKey, JSON.stringify(productData), "EX", 300);
+      } catch (redisError) {
+        console.error("Redis SET error:", redisError.message);
+      }
+    }
+
+    res.status(200).json({
+      msg: "Products data fetched successfully",
+      productData,
+    });
+  } catch (error) {
+    console.error("Product fetch error:", error.message);
+    res.status(500).json({
+      msg: "Something went wrong while fetching products",
+      error: error.message,
+    });
+  }
+});
+
+const clearProductCache = async () => {
+  try {
+    await redis.del("products:all");
+    await redis.del("products:public");
+    const sellerKeys = await redis.keys("products:seller:*");
+    if (sellerKeys.length > 0) {
+      await redis.del(...sellerKeys);
+    }
+  } catch (error) {
+    console.error("Error clearing cache:", error);
+  }
+};
+
 ProductRouter.get(
   "/getProduct/:productId",
   AuthMiddleware(["admin", "seller"]),
@@ -148,18 +239,6 @@ ProductRouter.get(
     }
   }
 );
-
-const clearProductCache = async () => {
-  try {
-    await redis.del("products:all");
-    const sellerKeys = await redis.keys("products:seller:*");
-    if (sellerKeys.length > 0) {
-      await redis.del(...sellerKeys);
-    }
-  } catch (error) {
-    console.error("Error clearing cache:", error);
-  }
-};
 
 //? Add product
 ProductRouter.post(
