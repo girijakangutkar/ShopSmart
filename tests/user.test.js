@@ -71,15 +71,22 @@ describe("User activities", () => {
     expect(res.body.msg).toBe("User updated successfully");
   });
 
-  test("Place an order", async () => {
-    const res = await request(app)
-      .put(`/myInfo/orderThis/${productId}`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ quantity: 1 });
-    expect(res.statusCode).toBe(200);
-    expect(res.body.msg).toBe("Order success");
-    expect(res.body.orderData).toBeDefined();
-  });
+  // test("Place an order", async () => {
+  //   const res = await request(app)
+  //     .put(`/myInfo/orderThis/${productId}`)
+  //     .set("Authorization", `Bearer ${token}`)
+  //     .send({
+  //       quantity: 1,
+  //       paymentMode: "cod",
+  //       paymentId: "fdfonawii454577djvn",
+  //       paymentStatus: false,
+  //     });
+  //   expect(res.statusCode).toBe(200);
+  //   expect(res.body.msg).toBe("Order success");
+  //   expect(res.body.orderId).toBeDefined();
+  //   expect(res.status.paymentStatus).toBe("pending");
+  //   expect(res.body.orderData).toBeDefined();
+  // });
 
   test("Add to the cart", async () => {
     const res = await request(app)

@@ -1,6 +1,6 @@
 const express = require("express");
 const UserModel = require("../models/UserModel");
-const AuthMiddleware = require("../middlewares/AuthMiddleware");
+const AuthMiddleware = require("../middlewares/authMiddleware");
 const UserRouter = express.Router();
 const redis = require("../config/RedisConfig");
 const multer = require("multer");
@@ -57,24 +57,30 @@ UserRouter.get(
           });
         }
 
-        const user = await UserModel.findById(req.userId).populate({
-          path: "orderHistory.product",
-          populate: {
-            path: "review.ratedBy",
-            select: "_id",
-          },
-        });
+        const user = await UserModel.findById(req.userId)
+          .populate(
+            "orderHistory.product",
+            "productName productPrice productImage productCompany"
+          )
+          .select("orderHistory");
+
+        if (!user) {
+          return res.status(404).json({ msg: "User not found" });
+        }
+
+        const sortOrders = user.orderHistory.sort(
+          (a, b) => new Date(b.purchasedAt) - new Date(a.purchasedAt)
+        );
 
         await redis.set(
           `orderHistory:${req.userId}`,
-          JSON.stringify(user.orderHistory),
+          JSON.stringify(sortOrders),
           "EX",
           60
         );
-        const orders = user.orderHistory;
         res.status(200).json({
           msg: "Order history fetch success from DB",
-          orderHistory: orders,
+          orderHistory: sortOrders,
         });
       } else {
         return res
@@ -85,6 +91,223 @@ UserRouter.get(
       res
         .status(500)
         .json({ msg: "Something went wrong while fetching orderHistory" });
+    }
+  }
+);
+
+UserRouter.get(
+  "/order/:orderId",
+  AuthMiddleware(["user", "admin"]),
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const userId = req.userId;
+
+      const user = await UserModel.findById(userId).populate(
+        "orderHistory.product",
+        "productName productPrice productImage productCompany productDescription"
+      );
+
+      if (!user) {
+        return res.status(404).json({ msg: "User not found" });
+      }
+
+      const order = user.orderHistory.find(
+        (order) => order.orderId === orderId
+      );
+
+      if (!order) {
+        return res.status(404).json({ msg: "Order not found" });
+      }
+
+      res.status(200).json({
+        msg: "Order details retrieved successfully",
+        order,
+      });
+    } catch (error) {
+      console.error("Error fetching order details:", error);
+      res
+        .status(500)
+        .json({ msg: "Something went wrong while fetching order details" });
+    }
+  }
+);
+
+// Cancel an order
+UserRouter.put(
+  "/cancelOrder/:orderId",
+  AuthMiddleware(["user", "admin"]),
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const userId = req.userId;
+
+      const user = await UserModel.findOneAndUpdate(
+        {
+          _id: userId,
+          "orderHistory.orderId": orderId,
+          "orderHistory.orderStatus": { $in: ["pending", "confirmed"] }, // Only allow cancellation of pending/confirmed orders
+        },
+        {
+          $set: {
+            "orderHistory.$.orderStatus": "cancelled",
+            "orderHistory.$.cancelledAt": new Date(),
+          },
+        },
+        { new: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          msg: "Order not found or cannot be cancelled",
+        });
+      }
+
+      // Clear cache
+      await redis.del(`orderHistory:${userId}`);
+
+      // If it was an online payment, you might want to initiate a refund here
+      const cancelledOrder = user.orderHistory.find(
+        (order) => order.orderId === orderId
+      );
+
+      res.status(200).json({
+        msg: "Order cancelled successfully",
+        order: cancelledOrder,
+      });
+    } catch (error) {
+      console.error("Error cancelling order:", error);
+      res
+        .status(500)
+        .json({ msg: "Something went wrong while cancelling the order" });
+    }
+  }
+);
+
+// Update order status (Admin only)
+UserRouter.put(
+  "/updateOrderStatus/:orderId",
+  AuthMiddleware(["admin"]),
+  async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { orderStatus, trackingId } = req.body;
+
+      const validStatuses = [
+        "pending",
+        "confirmed",
+        "processing",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ];
+
+      if (!validStatuses.includes(orderStatus)) {
+        return res.status(400).json({ msg: "Invalid order status" });
+      }
+
+      const updateData = {
+        "orderHistory.$.orderStatus": orderStatus,
+      };
+
+      if (trackingId) {
+        updateData["orderHistory.$.trackingId"] = trackingId;
+      }
+
+      if (orderStatus === "delivered") {
+        updateData["orderHistory.$.deliveredAt"] = new Date();
+      }
+
+      const user = await UserModel.findOneAndUpdate(
+        { "orderHistory.orderId": orderId },
+        { $set: updateData },
+        { new: true }
+      ).populate("orderHistory.product");
+
+      if (!user) {
+        return res.status(404).json({ msg: "Order not found" });
+      }
+
+      const updatedOrder = user.orderHistory.find(
+        (order) => order.orderId === orderId
+      );
+
+      // Clear cache for the user
+      await redis.del(`orderHistory:${user._id}`);
+
+      res.status(200).json({
+        msg: "Order status updated successfully",
+        order: updatedOrder,
+      });
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      res
+        .status(500)
+        .json({ msg: "Something went wrong while updating order status" });
+    }
+  }
+);
+
+// Get all orders (Admin only)
+UserRouter.get(
+  "/admin/allOrders",
+  AuthMiddleware(["admin"]),
+  async (req, res) => {
+    try {
+      const { status, page = 1, limit = 20 } = req.query;
+
+      const skip = (page - 1) * limit;
+      const matchStage = {};
+
+      if (status && status !== "all") {
+        matchStage["orderHistory.orderStatus"] = status;
+      }
+
+      const users = await UserModel.aggregate([
+        { $unwind: "$orderHistory" },
+        { $match: matchStage },
+        {
+          $lookup: {
+            from: "products",
+            localField: "orderHistory.product",
+            foreignField: "_id",
+            as: "orderHistory.product",
+          },
+        },
+        { $unwind: "$orderHistory.product" },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            email: 1,
+            orderHistory: 1,
+          },
+        },
+        { $sort: { "orderHistory.purchasedAt": -1 } },
+        { $skip: skip },
+        { $limit: parseInt(limit) },
+      ]);
+
+      const totalOrders = await UserModel.aggregate([
+        { $unwind: "$orderHistory" },
+        { $match: matchStage },
+        { $count: "total" },
+      ]);
+
+      res.status(200).json({
+        msg: "Orders retrieved successfully",
+        orders: users,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil((totalOrders[0]?.total || 0) / limit),
+          totalOrders: totalOrders[0]?.total || 0,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching all orders:", error);
+      res
+        .status(500)
+        .json({ msg: "Something went wrong while fetching orders" });
     }
   }
 );
@@ -102,24 +325,46 @@ UserRouter.put(
         return res.status(404).json({ msg: "Product does not exists" });
       }
 
-      const { quantity } = req.body;
+      const { quantity = 1, paymentMode, paymentId, paymentStatus } = req.body;
+
+      if (!["online", "cod"].includes(paymentMode)) {
+        return res.status(400).json({ msg: "Invalid payment mode" });
+      }
+
+      const orderId =
+        "ORD" +
+        Date.now() +
+        Math.random().toString(36).substr(2, 5).toUpperCase();
 
       const orderProduct = {
+        orderId,
         product: product._id,
         quantity: quantity,
         purchasedAt: new Date(),
+        paymentMode: paymentMode,
+        paymentId: paymentId || null,
+        paymentStatus: paymentStatus || false,
+        totalAmount: product.productPrice * quantity,
+        orderStatus: "confirmed",
       };
 
       const updatedUser = await UserModel.findByIdAndUpdate(
         req.userId,
         { $push: { orderHistory: orderProduct } },
         { new: true }
-      );
+      ).populate("orderHistory.product");
 
       await redis.del(`orderHistory:${req.userId}`);
-      res
-        .status(200)
-        .json({ msg: "Order success", orderData: updatedUser.orderHistory });
+
+      const latestOrder =
+        updatedUser.orderHistory[updatedUser.orderHistory.length - 1];
+
+      res.status(200).json({
+        msg: "Order success",
+        orderId: orderId,
+        orderData: latestOrder,
+        paymentStatus: paymentStatus ? "completed" : "pending",
+      });
     } catch (error) {
       res
         .status(500)
