@@ -19,7 +19,7 @@ const transporter = require("../config/NodeMailerTransporter");
 AuthRouter.get("/user/:userId", async (req, res) => {
   try {
     const user = await UserModel.findById(req.params.userId).select(
-      "name profilePhoto role"
+      "name profilePhoto role, createdAt"
     );
     res.json({ user });
   } catch (error) {
@@ -35,6 +35,12 @@ AuthRouter.post(
   async (req, res) => {
     try {
       const { name, email, password, role } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({
+          msg: "Email and password are required",
+        });
+      }
       const user = await UserModel.findOne({ email });
 
       if (user) {
