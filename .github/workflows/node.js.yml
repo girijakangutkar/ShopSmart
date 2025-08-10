@@ -5,6 +5,14 @@ on: [push, pull_request]
 env:
   MONGO_URI: ${{ secrets.MONGO_URI }}
   JWT_SECRET: ${{ secrets.JWT_SECRET }}
+  MAIL_USER: ${{ secrets.MAIL_USER }}
+  MAIL_PASS: ${{ secrets.MAIL_PASS }}
+  CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+  CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+  CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+  RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+  RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+  NODE_ENV: test
 
 jobs:
   build:
@@ -17,7 +25,8 @@ jobs:
     services:
       redis:
         image: redis:6
-        ports: ["6379:6379"]
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd="redis-cli ping"
           --health-interval=10s
@@ -26,15 +35,28 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-      - run: npm ci
-      - run: npm run build --if-present
-      - run: npm test
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for Redis
+        run: |
+          timeout 30 bash -c 'until nc -z localhost 6379; do sleep 1; done'
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build if present
+        run: npm run build --if-present
+
       - name: Build Docker image
         run: docker build -t shopsmart .
+
       - name: Run Docker container
-        run: docker run -d -p 3000:3000 --name shopsmart shop-smart
+        run: docker run -d -p 3000:3000 --name shopsmart shopsmart

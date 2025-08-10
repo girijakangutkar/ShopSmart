@@ -4,6 +4,8 @@ const AdminRouter = express.Router();
 const ProductModel = require("../models/ProductModel");
 const transporter = require("../config/NodeMailerTransporter");
 
+let stockCheckTask = null;
+
 //? Stock checkup manual
 AdminRouter.post("/stockCheckup/:productId", async (req, res) => {
   try {
@@ -34,36 +36,55 @@ AdminRouter.post("/stockCheckup/:productId", async (req, res) => {
   }
 });
 
-//? Stock checkup Automatic
+//? Stock checkup Automatic - Only run in production/development, not in tests
+if (process.env.NODE_ENV !== "test") {
+  stockCheckTask = cron.schedule(
+    "0 9 * * *",
+    async () => {
+      // Everyday at 9 AM
+      try {
+        const lowStockProducts = await ProductModel.find({
+          stock: { $lte: 5 },
+        });
 
-cron.schedule("0 9 * * *", async () => {
-  // Everyday at 9 AM
-  try {
-    const lowStockProducts = await ProductModel.find({ stock: { $lte: 5 } });
+        if (lowStockProducts.length === 0) {
+          console.log("✅ All products have sufficient stock.");
+          return;
+        }
 
-    if (lowStockProducts.length === 0) {
-      console.log("✅ All products have sufficient stock.");
-      return;
+        const productList = lowStockProducts
+          .map(
+            (product) =>
+              `<li>${product.productName} (ID: ${product._id}) - Stock: ${product.stock}</li>`
+          )
+          .join("");
+
+        await transporter.sendMail({
+          from: `"ShopSmart" <${process.env.MAIL_USER}>`,
+          to: process.env.MAIL_USER,
+          subject: "📦 Daily Low Stock Alert",
+          html: `<p>Dear admin, the following products have low stock:</p><ul>${productList}</ul>`,
+        });
+
+        console.log("📧 Low stock alert email sent.");
+      } catch (error) {
+        console.error("❌ Error in stock alert scheduler:", error);
+      }
+    },
+    {
+      scheduled: true,
+      timezone: "Asia/Kolkata",
     }
+  );
+}
 
-    const productList = lowStockProducts
-      .map(
-        (product) =>
-          `<li>${product.productName} (ID: ${product._id}) - Stock: ${product.stock}</li>`
-      )
-      .join("");
-
-    await transporter.sendMail({
-      from: `"ShopSmart" <${process.env.MAIL_USER}>`,
-      to: process.env.MAIL_USER,
-      subject: "📦 Daily Low Stock Alert",
-      html: `<p>Dear admin, the following products have low stock:</p><ul>${productList}</ul>`,
-    });
-
-    console.log("📧 Low stock alert email sent.");
-  } catch (error) {
-    console.error("❌ Error in stock alert scheduler:", error);
+AdminRouter.stopCronJob = () => {
+  if (stockCheckTask) {
+    stockCheckTask.stop();
+    stockCheckTask.destroy();
+    stockCheckTask = null;
+    console.log("📋 Stock check cron job stopped");
   }
-});
+};
 
 module.exports = AdminRouter;
