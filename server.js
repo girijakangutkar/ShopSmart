@@ -8,7 +8,7 @@ const Razorpay = require("razorpay");
 const router = express.Router();
 const app = express();
 
-console.log(process.env.NODE_ENV);
+console.log("env file", process.env.NODE_ENV);
 //! Env file
 require("dotenv").config({
   path: process.env.NODE_ENV == "test" ? "./.env.test" : "./.env",
