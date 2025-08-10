@@ -1,13 +1,13 @@
 name: Node.js CI
 
-on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+on: [push, pull_request]
+
+env:
+  MONGO_URI: ${{ secrets.MONGO_URI }}
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
 
     strategy:
@@ -24,36 +24,17 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-    env:
-      NODE_ENV: test
-      MONGO_URI: ${{ secrets.MONGO_URI }}
-      JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      REDIS_URL: redis://localhost:6379
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
+          cache: npm
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
       - name: Build Docker image
         run: docker build -t shopsmart .
-
       - name: Run Docker container
-        run: docker run -d -p 3000:3000 --name shop-smart shopsmart
+        run: docker run -d -p 3000:3000 --name shopsmart shop-smart
