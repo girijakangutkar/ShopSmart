@@ -20,6 +20,7 @@ const connectWithRetry = () => {
     .connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      family: 4,
       serverSelectionTimeoutMS: 15000, // Increase timeout to 15 seconds
       socketTimeoutMS: 45000, // Increase socket timeout
       bufferMaxEntries: 0, // Disable mongoose buffering
