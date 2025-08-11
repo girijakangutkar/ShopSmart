@@ -10,8 +10,8 @@ Backend
 
 ## Deployed App
 
-Frontend: https://shop-smart-blush.vercel.app/
-Backend: https://shopsmart-a2pp.onrender.com/
+ - Frontend: https://shop-smart-blush.vercel.app/
+ - Backend: https://shopsmart-a2pp.onrender.com/
 
 ## Directory Structure
 
@@ -45,12 +45,10 @@ shopsmart/
 
 ## 🎥 Video Walkthrough of the Project
 
-- [GitHub-hosted video](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video1259025874.mp4)  
 - [Google Drive video](https://drive.google.com/file/d/1UvJ6jRt6PRFimd-Frc6V7JFSqVcZXmcN/view?usp=sharing)
 
 ## 🧑‍💻 Video Walkthrough of the Codebase
 
-- [GitHub-hosted video](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video2259025874.mp4)  
 - [Google Drive video](https://drive.google.com/file/d/1uL4bXA2JokIrqzvyjrZ6fd_66Luv0Ljf/view?usp=sharing)
 
 
@@ -139,6 +137,7 @@ User:
 - redis
 - Cloudinary
 - NodeMailer
+
 
 
 
