@@ -2,6 +2,7 @@ const express = require("express");
 const ProductModel = require("../models/ProductModel");
 const AuthMiddleware = require("../middlewares/authMiddleware");
 const ProductRouter = express.Router();
+const mongoose = require("mongoose");
 
 const multer = require("multer");
 const { storage } = require("../config/CloudinaryConfig");
@@ -10,12 +11,10 @@ const upload = multer({ storage });
 
 //* Main API end point "wareHouse"
 
-//? Get products - PUBLIC ROUTE (no authentication required)
 ProductRouter.get("/public/products", async (req, res) => {
   try {
     const { category, minPrice, maxPrice, name, sortOrder } = req.query;
 
-    // Validate and normalize query parameters
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -24,7 +23,13 @@ ProductRouter.get("/public/products", async (req, res) => {
     const isCustomSort = sortOrder && sortOrder !== "asc";
     const hasFilters = category || minPrice || maxPrice || name || isCustomSort;
 
-    // Redis cache logic for public products
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        msg: "Database connection not ready",
+        error: "Service temporarily unavailable",
+      });
+    }
+
     let cachedKey = "products:public";
     if (!hasFilters) {
       try {
@@ -40,7 +45,6 @@ ProductRouter.get("/public/products", async (req, res) => {
       }
     }
 
-    // Build MongoDB query - no user-specific filtering
     const filtered = {};
 
     if (category) {
@@ -59,14 +63,20 @@ ProductRouter.get("/public/products", async (req, res) => {
       filtered.productName = { $regex: name, $options: "i" };
     }
 
-    // Fetch from MongoDB
+    console.log("Fetching products with filter:", filtered);
+
+    // Fetch from MongoDB with timeout and proper error handling
     const productData = await ProductModel.find(filtered)
       .sort({ productPrice: sortDirection })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .maxTimeMS(15000) // 15 second timeout instead of default 10
+      .lean(); // Use lean() for better performance
 
-    // Cache result if no filters
-    if (!hasFilters) {
+    console.log("Products fetched successfully:", productData.length);
+
+    // Cache result if no filters and successful
+    if (!hasFilters && productData.length > 0) {
       try {
         await redis.set(cachedKey, JSON.stringify(productData), "EX", 300);
       } catch (redisError) {
@@ -79,9 +89,25 @@ ProductRouter.get("/public/products", async (req, res) => {
       productData,
     });
   } catch (error) {
-    console.error("Product fetch error:", error.message);
-    res.status(500).json({
-      msg: "Something went wrong while fetching products",
+    console.error("Product fetch error:", error);
+
+    // Different error messages based on error type
+    let errorMessage = "Something went wrong while fetching products";
+    let statusCode = 500;
+
+    if (
+      error.name === "MongooseError" ||
+      error.message.includes("buffering timed out")
+    ) {
+      errorMessage = "Database connection timeout. Please try again.";
+      statusCode = 503;
+    } else if (error.name === "MongoError") {
+      errorMessage = "Database error. Please try again later.";
+      statusCode = 503;
+    }
+
+    res.status(statusCode).json({
+      msg: errorMessage,
       error: error.message,
     });
   }
