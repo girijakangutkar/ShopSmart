@@ -379,6 +379,7 @@ UserRouter.put(
   "/addToCart/:productId",
   AuthMiddleware(["user", "admin"]),
   async (req, res) => {
+    console.log("user id [cart]", req.userId);
     console.log("Add to cart route hit with productId:", req.params.productId);
     try {
       const productId = req.params.productId;
@@ -387,7 +388,6 @@ UserRouter.put(
       if (!product) {
         return res.status(404).json({ msg: "Product does not exist" });
       }
-
       const user = await UserModel.findById(req.userId);
 
       if (!user) {
@@ -444,7 +444,7 @@ UserRouter.get("/cart", AuthMiddleware(["user", "admin"]), async (req, res) => {
 
       const cartData = user.cart;
 
-      await redis.set("cartInfo", JSON.stringify(cartData), "EX", 60);
+      await redis.set("cartItems", JSON.stringify(cartData), "EX", 60);
       res.status(200).json({
         msg: "fetched cart successfully",
         cart: cartData,
