@@ -29,16 +29,27 @@ shopsmart/
 ## App screenshots
 
 - Home Page
-[!alt]("https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1408).png")
-[!alt]()
-[!alt]()
-[!alt]()
-[!alt]()
+    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1408).png)
+
+- Shopping cart
+    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1409).png)
+
+- Oprder history
+    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1410).png)
+
+- Wish list
+      - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1411).png)
+
+  - User profile
+      - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1412).png)
 
 ## Video Walkthrough of the project
-
+    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video1259025874.mp4)
+    - [!alt](https://drive.google.com/file/d/1UvJ6jRt6PRFimd-Frc6V7JFSqVcZXmcN/view?usp=sharing)
+    
 ## Video Walkthrough of the codebase
-
+    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video2259025874.mp4)
+    - [!alt](https://drive.google.com/file/d/1uL4bXA2JokIrqzvyjrZ6fd_66Luv0Ljf/view?usp=sharing)
 ## Features
 
 - Search and filter products
@@ -106,7 +117,7 @@ User:
   - DELETE /myInfo/removeFromWishList/:productId - Remove a product from wishList
   - PATCH /myInfo/updateProfile/:userId - Updating user details
 
--  PRODUCT_ROUTES
+- PRODUCT_ROUTES
   - GET /wareHouse/public/products - Get products without authentication for showing them to the unauthorized user
   - GET /wareHouse/getProduct/:productId - Show product
   - GET /wareHouse/products - Show products with filter with authentication
@@ -124,4 +135,5 @@ User:
 - redis
 - Cloudinary
 - NodeMailer
+
 
