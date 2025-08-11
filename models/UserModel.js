@@ -22,7 +22,14 @@ const UserSchema = new mongoose.Schema({
       totalAmount: { type: Number, required: true, min: 0 },
       orderStatus: {
         type: String,
-        enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+        enum: [
+          "pending",
+          "confirmed",
+          "processing",
+          "shipped",
+          "delivered",
+          "cancelled",
+        ],
         default: "pending",
       },
       trackingId: { type: String, default: null },
