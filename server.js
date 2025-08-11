@@ -25,7 +25,7 @@ require("./routes/AdminRoutes");
 //!cors
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "https://shop-smart-blush.vercel.app"],
     credentials: true,
   })
 );
