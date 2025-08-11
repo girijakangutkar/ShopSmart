@@ -26,30 +26,34 @@ shopsmart/
 ├─ .env
 ├─ .env.test
 
-## App screenshots
+## 📸 App Screenshots
 
-- Home Page
-    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1408).png)
+- **Home Page**  
+  ![Home Page](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1408).png)
 
-- Shopping cart
-    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1409).png)
+- **Shopping Cart**  
+  ![Shopping Cart](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1409).png)
 
-- Oprder history
-    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1410).png)
+- **Order History**  
+  ![Order History](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1410).png)
 
-- Wish list
-      - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1411).png)
+- **Wish List**  
+  ![Wish List](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1411).png)
 
-  - User profile
-      - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1412).png)
+- **User Profile**  
+  ![User Profile](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/Screenshot%20(1412).png)
 
-## Video Walkthrough of the project
-    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video1259025874.mp4)
-    - [!alt](https://drive.google.com/file/d/1UvJ6jRt6PRFimd-Frc6V7JFSqVcZXmcN/view?usp=sharing)
-    
-## Video Walkthrough of the codebase
-    - [!alt](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video2259025874.mp4)
-    - [!alt](https://drive.google.com/file/d/1uL4bXA2JokIrqzvyjrZ6fd_66Luv0Ljf/view?usp=sharing)
+## 🎥 Video Walkthrough of the Project
+
+- [GitHub-hosted video](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video1259025874.mp4)  
+- [Google Drive video](https://drive.google.com/file/d/1UvJ6jRt6PRFimd-Frc6V7JFSqVcZXmcN/view?usp=sharing)
+
+## 🧑‍💻 Video Walkthrough of the Codebase
+
+- [GitHub-hosted video](https://github.com/girijakangutkar/ShopSmart/blob/main/assets/video2259025874.mp4)  
+- [Google Drive video](https://drive.google.com/file/d/1uL4bXA2JokIrqzvyjrZ6fd_66Luv0Ljf/view?usp=sharing)
+
+
 ## Features
 
 - Search and filter products
@@ -135,5 +139,6 @@ User:
 - redis
 - Cloudinary
 - NodeMailer
+
 
 
