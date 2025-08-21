@@ -1,4 +1,4 @@
-﻿# E-commerce Shop Smart
+﻿# E-commerce Shop Smart [Backend]
 
 ## Introduction
 
@@ -137,6 +137,7 @@ User:
 - redis
 - Cloudinary
 - NodeMailer
+
 
 
 
