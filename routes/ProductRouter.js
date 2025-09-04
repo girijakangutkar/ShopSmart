@@ -419,14 +419,14 @@ ProductRouter.delete(
 //? Open the product detail
 ProductRouter.get("/productDetails/:productId", async (req, res) => {
   try {
-    const cached = await redis.get("productDetails");
+    // const cached = await redis.get("productDetails");
 
-    if (cached) {
-      return res.status(200).json({
-        msg: "product details from cached",
-        product: JSON.parse(cached),
-      });
-    }
+    // if (cached) {
+    //   return res.status(200).json({
+    //     msg: "product details from cached",
+    //     product: JSON.parse(cached),
+    //   });
+    // }
 
     const productId = req.params.productId;
     const product = await ProductModel.findById(productId)
@@ -443,7 +443,7 @@ ProductRouter.get("/productDetails/:productId", async (req, res) => {
       return res.status(404).json({ msg: "Product not found" });
     }
 
-    await redis.set("productDetails", JSON.stringify(product), "EX", 60);
+    // await redis.set("productDetails", JSON.stringify(product), "EX", 60);
     res
       .status(200)
       .json({ msg: "Product data fetched success", product: product });
