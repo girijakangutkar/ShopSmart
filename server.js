@@ -14,6 +14,7 @@ require("dotenv").config({
   path: process.env.NODE_ENV == "test" ? "./.env.test" : "./.env",
 });
 
+
 //!Mongo connection
 if (process.env.NODE_ENV !== "test") {
   require("./config/MongoConfig");
@@ -22,6 +23,7 @@ if (process.env.NODE_ENV !== "test") {
 //!Cron schedular
 require("./routes/AdminRoutes");
 
+app.set('trust proxy', 1); 
 //!cors
 app.use(
   cors({
