@@ -25,12 +25,11 @@ require("./routes/AdminRoutes");
 
 app.set('trust proxy', 1); 
 //!cors
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "https://shop-smart-blush.vercel.app"],
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: 'https://shop-smart-blush.vercel.app',
+  methods: ['GET','POST','PUT','DELETE'],
+  credentials: true,
+}));
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
